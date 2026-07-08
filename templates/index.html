@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MathPad | Scientific Notebook</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- KaTeX -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+    <!-- Math.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.0/math.js"></script>
+    <!-- Marked.js -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        :root {
+            --brand: #6366f1;
+            --brand-glow: rgba(99, 102, 241, 0.4);
+        }
+
+        body { font-family: 'Inter', sans-serif; background-color: #09090b; color: #e4e4e7; }
+        .mono { font-family: 'Fira Code', monospace; }
+        
+        .glass {
+            background: rgba(24, 24, 27, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 10px; }
+
+        .editor-textarea:focus { outline: none; }
+        
+        /* Math Preview Styling */
+        .math-preview h1 { font-size: 2.25rem; font-weight: 800; margin-bottom: 1.5rem; color: #fff; }
+        .math-preview h2 { font-size: 1.5rem; font-weight: 700; margin-top: 2rem; margin-bottom: 1rem; color: #f4f4f5; }
+        .math-preview p { margin-bottom: 1.25rem; line-height: 1.7; color: #d4d4d8; }
+        .math-preview code { background: #18181b; padding: 0.2rem 0.4rem; border-radius: 0.375rem; font-size: 0.875em; }
+        
+        .math-result-block {
+            background: #111827;
+            border-left: 4px solid var(--brand);
+            padding: 1rem;
+            margin: 1rem 0;
+            font-family: 'Fira Code', monospace;
+        }
+        
+        .math-line-result {
+            color: #10b981;
+            font-weight: 600;
+        }
+
+        .katex-display { margin: 1.5em 0; overflow-x: auto; overflow-y: hidden; }
+    </style>
+</head>
+<body class="h-screen overflow-hidden flex">
+
+    <!-- Sidebar -->
+    <aside class="w-72 glass border-r border-zinc-800 flex flex-col z-50">
+        <div class="p-6">
+            <div class="flex items-center gap-3 mb-8">
+                <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-900/20">
+                    <i data-lucide="function-square" class="text-white"></i>
+                </div>
+                <h1 class="text-xl font-bold tracking-tighter">MathPad</h1>
+            </div>
+            
+            <button onclick="newNote()" class="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 py-3 rounded-xl transition-all font-bold text-sm mb-6 shadow-xl shadow-indigo-900/10">
+                <i data-lucide="plus" size="18"></i> NEW NOTE
+            </button>
+
+            <div class="relative">
+                <i data-lucide="search" class="absolute left-3 top-3 text-zinc-500" size="16"></i>
+                <input id="search" type="text" placeholder="Search equations..." class="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl pl-10 py-2.5 text-xs focus:ring-1 focus:ring-indigo-500 outline-none transition-all">
+            </div>
+        </div>
+
+        <nav id="notes-list" class="flex-1 overflow-y-auto px-4 pb-6 space-y-1">
+            <!-- Notes injected here -->
+        </nav>
+
+        <div class="p-4 border-t border-zinc-800">
+            <div class="flex items-center gap-2 text-[10px] uppercase font-bold text-zinc-600 tracking-widest">
+                <i data-lucide="database" size="12"></i> Localhost Active
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Workspace -->
+    <main class="flex-1 flex flex-col min-w-0">
+        <!-- Toolbar -->
+        <header class="h-16 border-b border-zinc-800 flex items-center justify-between px-8 bg-zinc-950/50 backdrop-blur-md">
+            <div class="flex items-center gap-6 flex-1">
+                <input id="note-title" type="text" placeholder="Untitled Calculation" class="bg-transparent border-none text-lg font-bold focus:outline-none w-full max-w-md placeholder:text-zinc-700">
+            </div>
+            
+            <div class="flex items-center gap-4">
+                <span id="save-status" class="text-[10px] font-bold uppercase text-zinc-500 tracking-widest"></span>
+                <div class="h-6 w-px bg-zinc-800 mx-2"></div>
+                <button onclick="deleteCurrentNote()" class="p-2 text-zinc-500 hover:text-red-400 transition-colors">
+                    <i data-lucide="trash-2" size="20"></i>
+                </button>
+            </div>
+        </header>
+
+        <div class="flex-1 flex overflow-hidden">
+            <!-- Editor Pane -->
+            <div class="w-1/2 flex flex-col border-r border-zinc-800 bg-[#0c0c0e]">
+                <div class="px-8 py-3 bg-zinc-900/20 border-b border-zinc-800 flex justify-between items-center">
+                    <span class="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em]">Editor</span>
+                    <span class="text-[10px] text-zinc-600">Markdown + LaTeX ($...$)</span>
+                </div>
+                <textarea id="editor" class="editor-textarea flex-1 p-12 bg-transparent resize-none text-zinc-300 leading-relaxed text-lg mono font-light" placeholder="Type math here... e.g. The area is $A = \pi r^2$"></textarea>
+            </div>
+
+            <!-- Preview Pane -->
+            <div class="w-1/2 flex flex-col bg-zinc-950">
+                <div class="px-8 py-3 bg-zinc-900/20 border-b border-zinc-800 flex justify-between items-center">
+                    <span class="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em]">Live Preview</span>
+                    <div class="flex gap-4">
+                        <span class="text-[10px] text-zinc-600">KaTeX Rendered</span>
+                    </div>
+                </div>
+                <div id="preview" class="flex-1 p-12 overflow-y-auto math-preview">
+                    <!-- Preview injected here -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        lucide.createIcons();
+
+        let currentNote = null;
+        let timeout = null;
+        const mathParser = math.parser();
+
+        const notesList = document.getElementById('notes-list');
+        const noteTitle = document.getElementById('note-title');
+        const editor = document.getElementById('editor');
+        const preview = document.getElementById('preview');
+        const saveStatus = document.getElementById('save-status');
+
+        async function fetchNotes() {
+            const res = await fetch('/api/notes');
+            const notes = await res.json();
+            renderNotesList(notes);
+        }
+
+        function renderNotesList(notes) {
+            notesList.innerHTML = '';
+            notes.forEach(filename => {
+                const isActive = currentNote === filename;
+                const div = document.createElement('div');
+                div.className = `group flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all ${isActive ? 'bg-indigo-600/10 text-indigo-400 border border-indigo-500/20' : 'text-zinc-500 hover:bg-zinc-800/50 hover:text-zinc-300'}`;
+                div.innerHTML = `
+                    <div class="flex items-center gap-3 overflow-hidden">
+                        <i data-lucide="file-text" size="14"></i>
+                        <span class="truncate text-xs font-semibold uppercase tracking-wider">${filename.replace('.md', '')}</span>
+                    </div>
+                `;
+                div.onclick = () => loadNote(filename);
+                notesList.appendChild(div);
+            });
+            lucide.createIcons();
+        }
+
+        async function loadNote(filename) {
+            currentNote = filename;
+            const res = await fetch(`/api/notes/${filename}`);
+            const data = await res.json();
+            noteTitle.value = data.filename.replace('.md', '');
+            editor.value = data.content;
+            updatePreview();
+            fetchNotes();
+            saveStatus.innerText = 'Sync Complete';
+        }
+
+        function updatePreview() {
+            let content = editor.value;
+            
+            // Process math blocks: ```math ... ```
+            content = content.replace(/```math\n([\s\S]*?)```/g, (match, block) => {
+                const lines = block.split('\n');
+                let resultHtml = '<div class="math-result-block">';
+                mathParser.clear();
+                
+                lines.forEach(line => {
+                    if (line.trim() === '') return;
+                    try {
+                        const result = mathParser.evaluate(line);
+                        resultHtml += `<div class="flex justify-between border-b border-white/5 py-1">
+                            <span class="text-zinc-500">${line}</span>
+                            <span class="math-line-result">➜ ${result}</span>
+                        </div>`;
+                    } catch (e) {
+                        resultHtml += `<div class="text-rose-500/50 text-[10px]">${line}: Error</div>`;
+                    }
+                });
+                resultHtml += '</div>';
+                return resultHtml;
+            });
+
+            preview.innerHTML = marked.parse(content);
+            
+            // Render KaTeX
+            renderMathInElement(preview, {
+                delimiters: [
+                    {left: '$$', right: '$$', display: true},
+                    {left: '$', right: '$', display: false}
+                ],
+                throwOnError : false
+            });
+        }
+
+        async function saveNote() {
+            if (!noteTitle.value) return;
+            saveStatus.innerText = 'Saving...';
+            const filename = noteTitle.value.endsWith('.md') ? noteTitle.value : noteTitle.value + '.md';
+            
+            const res = await fetch('/api/notes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    filename: filename,
+                    content: editor.value
+                })
+            });
+            const data = await res.json();
+            currentNote = data.filename;
+            saveStatus.innerText = 'Saved to Disk';
+            fetchNotes();
+        }
+
+        function newNote() {
+            currentNote = null;
+            noteTitle.value = '';
+            editor.value = '# New Calculation\n\nVariables and math:\n\n```math\na = 5\nb = 12\nc = sqrt(a^2 + b^2)\n```\n\nInline math: $E = mc^2$\n\nDisplay math:\n$$\\int_{a}^{b} f(x)dx$$';
+            updatePreview();
+            noteTitle.focus();
+        }
+
+        async function deleteCurrentNote() {
+            if (!currentNote) return;
+            if (confirm(`Purge ${currentNote} from records?`)) {
+                await fetch(`/api/notes/${currentNote}`, { method: 'DELETE' });
+                newNote();
+                fetchNotes();
+            }
+        }
+
+        editor.oninput = () => {
+            updatePreview();
+            clearTimeout(timeout);
+            timeout = setTimeout(saveNote, 1000);
+        };
+
+        noteTitle.oninput = () => {
+            clearTimeout(timeout);
+            timeout = setTimeout(saveNote, 1000);
+        };
+
+        fetchNotes();
+        newNote();
+    </script>
+</body>
+</html>
